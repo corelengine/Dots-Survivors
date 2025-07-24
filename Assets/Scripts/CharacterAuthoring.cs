@@ -1,9 +1,11 @@
+using System;
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 using Unity.Physics;
 using Unity.Rendering;
+using UnityEngine.Serialization;
 
 
 public struct InitializeCharacterFlag : IComponentData, IEnableableComponent
@@ -26,9 +28,25 @@ public struct FacingDirectionOverride : IComponentData
     public float Value;
 }
 
+public struct CharacterMaxHitPoints : IComponentData
+{
+    public int Value;
+}
+
+public struct CharacterCurrentHitPoints : IComponentData
+{
+    public int Value;
+}
+
+public struct DamageThisFrame : IBufferElementData
+{
+    public int Value;
+}
+
 public class CharacterAuthoring : MonoBehaviour
 {
     public float moveSpeed;
+    public int hitPoints;
 
     private class Baker : Baker<CharacterAuthoring>
     {
@@ -39,6 +57,17 @@ public class CharacterAuthoring : MonoBehaviour
             AddComponent<CharacterMoveDirection>(entity);
             AddComponent(entity, new CharacterMoveSpeed { Value = authoring.moveSpeed });
             AddComponent(entity, new FacingDirectionOverride() { Value = 1 });
+            AddComponent(entity, new CharacterMaxHitPoints()
+            {
+                Value = authoring.hitPoints
+            });
+            AddComponent(entity, new CharacterCurrentHitPoints()
+            {
+                Value = authoring.hitPoints
+            });
+            AddBuffer<DamageThisFrame>(entity);
+            AddComponent<DestroyEntityFlag>(entity);
+            SetComponentEnabled<DestroyEntityFlag>(entity, false);
         }
     }
 }
@@ -64,8 +93,9 @@ public partial struct CharacterMoveSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         //float deltaTime = SystemAPI.Time.DeltaTime;
-        foreach (var (velocity,facingDirection, direction, speed, entity) in SystemAPI
-                     .Query<RefRW<PhysicsVelocity>, RefRW<FacingDirectionOverride>, RefRO<CharacterMoveDirection>, RefRO<CharacterMoveSpeed>>().WithEntityAccess())
+        foreach (var (velocity, facingDirection, direction, speed, entity) in SystemAPI
+                     .Query<RefRW<PhysicsVelocity>, RefRW<FacingDirectionOverride>, RefRO<CharacterMoveDirection>,
+                         RefRO<CharacterMoveSpeed>>().WithEntityAccess())
         {
             var moveStep2d = direction.ValueRO.Value * speed.ValueRO.Value;
             velocity.ValueRW.Linear = new float3(moveStep2d, 0f);
@@ -78,7 +108,9 @@ public partial struct CharacterMoveSystem : ISystem
             if (SystemAPI.HasComponent<PlayerTag>(entity))
             {
                 var animationOverride = SystemAPI.GetComponentRW<AnimationIndexOverride>(entity);
-                PlayerAnimationIndex animationType = math.lengthsq(moveStep2d) > float.Epsilon ? PlayerAnimationIndex.Movement : PlayerAnimationIndex.Idle;
+                PlayerAnimationIndex animationType = math.lengthsq(moveStep2d) > float.Epsilon
+                    ? PlayerAnimationIndex.Movement
+                    : PlayerAnimationIndex.Idle;
                 animationOverride.ValueRW.Value = (float)animationType;
             }
         }
@@ -97,5 +129,29 @@ public partial struct GlobalTimeUpdateSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         Shader.SetGlobalFloat(_globalTimeShaderPropertyID, (float)SystemAPI.Time.ElapsedTime);
+    }
+}
+
+public partial struct ProcessDamageThisFrameSystem : ISystem
+{
+    [BurstCompile]
+    public void OnUpdate(ref SystemState state)
+    {
+        foreach (var (hitPoints, damageThisFrame, entity) in SystemAPI
+                     .Query<RefRW<CharacterCurrentHitPoints>, DynamicBuffer<DamageThisFrame>>().WithPresent<DestroyEntityFlag>().WithEntityAccess())
+        {
+            if (damageThisFrame.IsEmpty) continue;
+            foreach (var damage in damageThisFrame)
+            {
+                hitPoints.ValueRW.Value -= damage.Value;
+            }
+
+            damageThisFrame.Clear();
+
+            if (hitPoints.ValueRO.Value <= 0)
+            {
+                SystemAPI.SetComponentEnabled<DestroyEntityFlag>(entity, true);
+            }
+        }
     }
 }
