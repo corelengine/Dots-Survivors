@@ -1,4 +1,5 @@
-﻿using Unity.Entities;
+﻿using TMG.Survivors;
+using Unity.Entities;
 
 public struct DestroyEntityFlag : IComponentData, IEnableableComponent
 {
@@ -21,6 +22,10 @@ public partial struct DestroyEntitySystem : ISystem
         
         foreach (var (_, entity) in SystemAPI.Query<DestroyEntityFlag>().WithEntityAccess())
         {
+            if (SystemAPI.HasComponent<PlayerTag>(entity))
+            {
+                GameUIController.Instance.ShowGameOverUI();
+            }
             endEcb.DestroyEntity(entity);    
         }
     }
