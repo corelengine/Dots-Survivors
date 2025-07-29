@@ -1,5 +1,6 @@
 ﻿using TMG.Survivors;
 using Unity.Entities;
+using Unity.Transforms;
 
 public struct DestroyEntityFlag : IComponentData, IEnableableComponent
 {
@@ -12,6 +13,7 @@ public partial struct DestroyEntitySystem : ISystem
 {
     public void OnCreate(ref SystemState state)
     {
+        state.RequireForUpdate<BeginInitializationEntityCommandBufferSystem.Singleton>();
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
 
@@ -20,12 +22,24 @@ public partial struct DestroyEntitySystem : ISystem
         var endEcbSystem = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
         var endEcb = endEcbSystem.CreateCommandBuffer(state.WorldUnmanaged);
         
+        var beginEcbSystem = SystemAPI.GetSingleton<BeginInitializationEntityCommandBufferSystem.Singleton>();
+        var beginEcb = beginEcbSystem.CreateCommandBuffer(state.WorldUnmanaged);
+        
         foreach (var (_, entity) in SystemAPI.Query<DestroyEntityFlag>().WithEntityAccess())
         {
             if (SystemAPI.HasComponent<PlayerTag>(entity))
             {
                 GameUIController.Instance.ShowGameOverUI();
             }
+
+            if (SystemAPI.HasComponent<GemPrefab>(entity))
+            {
+                var gemPrefab = SystemAPI.GetComponent<GemPrefab>(entity).Value;
+                var newGem = beginEcb.Instantiate(gemPrefab);
+                var spawnPosition = SystemAPI.GetComponent<LocalToWorld>(entity).Position;
+                beginEcb.SetComponent(newGem, LocalTransform.FromPosition(spawnPosition));
+            }
+            
             endEcb.DestroyEntity(entity);    
         }
     }

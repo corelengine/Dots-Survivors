@@ -1493,6 +1493,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   attackDamage: 5
   cooldownTime: 1
+  gemPrefab: {fileID: 0}
 --- !u!114 &17151599
 MonoBehaviour:
   m_ObjectHideFlags: 0

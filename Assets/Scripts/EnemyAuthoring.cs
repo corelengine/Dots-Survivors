@@ -22,11 +22,17 @@ public struct EnemyCooldownExpirationTimestamp : IComponentData, IEnableableComp
     public double Value;
 }
 
+public struct GemPrefab : IComponentData
+{
+    public Entity Value;
+}
+
 [RequireComponent(typeof(CharacterAuthoring))]
 public class EnemyAuthoring : MonoBehaviour
 {
     public int attackDamage;
     public float cooldownTime;
+    public GameObject gemPrefab;
 
     private class Backer : Baker<EnemyAuthoring>
     {
@@ -41,6 +47,10 @@ public class EnemyAuthoring : MonoBehaviour
             });
             AddComponent<EnemyCooldownExpirationTimestamp>(entity);
             SetComponentEnabled<EnemyCooldownExpirationTimestamp>(entity, false);
+            AddComponent(entity, new GemPrefab
+            {
+                Value = GetEntity(authoring.gemPrefab, TransformUsageFlags.Dynamic)
+            });
         }
     }
 }
@@ -111,18 +121,18 @@ public partial struct EnemyAttackSystem : ISystem
         state.Dependency = attackJob.Schedule(simulationSingleton, state.Dependency);
     }
 }
+
 [BurstCompile]
 public struct EnemyAttackJob : ICollisionEventsJob
 {
-    
     [ReadOnly] public ComponentLookup<PlayerTag> PlayerLookup;
     [ReadOnly] public ComponentLookup<EnemyAttackData> AttackDataLookup;
     public ComponentLookup<EnemyCooldownExpirationTimestamp> CooldownLookup;
 
     public BufferLookup<DamageThisFrame> DamageBufferLookup;
-    
+
     public double ElapseTime;
-    
+
     public void Execute(CollisionEvent collisionEvent)
     {
         Entity playerEntity, enemyEntity;
@@ -142,12 +152,13 @@ public struct EnemyAttackJob : ICollisionEventsJob
         {
             return;
         }
-        
+
         if (CooldownLookup.IsComponentEnabled(enemyEntity)) return;
 
         EnemyAttackData attackData = AttackDataLookup[enemyEntity];
 
-        CooldownLookup[enemyEntity] = new EnemyCooldownExpirationTimestamp{Value = ElapseTime + attackData.CooldownTime};
+        CooldownLookup[enemyEntity] = new EnemyCooldownExpirationTimestamp
+            { Value = ElapseTime + attackData.CooldownTime };
         CooldownLookup.SetComponentEnabled(enemyEntity, true);
 
         DamageBufferLookup[playerEntity].Add(new DamageThisFrame
