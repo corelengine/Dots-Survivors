@@ -64221,6 +64221,7 @@ MonoBehaviour:
   attackPrefab: {fileID: 3271534283601111190, guid: c5f70f8e30b80f94a97d04d5999a3e0f, type: 3}
   cooldownTime: 1
   detectionSize: 10
+  WorldUIPrefab: {fileID: 6848332979229617546, guid: 1b8519ce5d7dc6e48bb4d207983180ca, type: 3}
 --- !u!1 &909167320
 GameObject:
   m_ObjectHideFlags: 0
